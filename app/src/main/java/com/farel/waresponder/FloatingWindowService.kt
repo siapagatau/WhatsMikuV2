@@ -126,7 +126,7 @@ class FloatingWindowService : Service() {
         }
         bubble.addView(icon)
 
-        bubble.setOnClickListener { setMinimized(false) }
+        // tap handled in setupDrag via makeDragTouchListener
         return bubble
     }
 
@@ -278,8 +278,8 @@ class FloatingWindowService : Service() {
 
     // ===================== DRAG =====================
 
-    private fun setupDrag() {
-        floatingView.setOnTouchListener { _, event ->
+    private fun makeDragTouchListener(onTap: (() -> Unit)? = null): View.OnTouchListener {
+        return View.OnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = params!!.x
@@ -289,19 +289,33 @@ class FloatingWindowService : Service() {
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params!!.x = initialX + (event.rawX - initialTouchX).toInt()
-                    params!!.y = initialY + (event.rawY - initialTouchY).toInt()
+                    val dx = (event.rawX - initialTouchX).toInt()
+                    val dy = (event.rawY - initialTouchY).toInt()
+                    params!!.x = initialX + dx
+                    params!!.y = initialY + dy
                     windowManager.updateViewLayout(floatingView, params)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    // tap = belum banyak gerak
+                    val dx = Math.abs(event.rawX - initialTouchX)
+                    val dy = Math.abs(event.rawY - initialTouchY)
+                    if (dx < 10 && dy < 10) onTap?.invoke()
                     true
                 }
                 else -> false
             }
         }
+    }
 
-        // Title bar drag (more precise area)
-        expandedPanel.findViewWithTag<View>("titlebar")?.setOnTouchListener { _, event ->
-            floatingView.onTouchEvent(event)
-        }
+    private fun setupDrag() {
+        // Expanded panel: drag via root floatingView
+        floatingView.setOnTouchListener(makeDragTouchListener())
+
+        // Bubble: drag dengan tap untuk expand
+        bubbleView.setOnTouchListener(makeDragTouchListener(onTap = {
+            setMinimized(false)
+        }))
     }
 
     // ===================== STATE =====================
